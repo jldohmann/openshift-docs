@@ -1249,6 +1249,8 @@ In {product-title} 4.12, support for {op-system} functionality is deprecated for
 
 While these hardware models remain fully supported in {product-title} 4.12, Red Hat recommends that you use later hardware models.
 
+lkasjdflkasjdgiojdflkgjdfalg5jf
+
 [id="ocp-4-12-removed-features"]
 === Removed features
 
