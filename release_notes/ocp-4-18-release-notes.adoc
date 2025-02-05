@@ -497,6 +497,20 @@ With this release, you can view network information for ingress flows to {produc
 
 For more information, see  xref:../installing/install_config/configuring-firewall.adoc#network-flow-matrix_configuring-firewall[{product-title} network flow matrix].
 
+[id="ocp-release-notes-networking-aws-byo-static-eip-support-ingress_{context}"]
+==== Support for {aws-short} static IP addresses in the Ingress Controller
+
+With this release, you can now specify static IP addresses, or {aws-short} Elastic IP (EIP) addresses, for your Network Load Balancer (NLB) in the Ingress Controller.
+
+For more information, see xref:../networking/configuring_ingress_cluster_traffic/configuring-ingress-cluster-traffic-aws.adoc#nw-ingress-aws-static-eip-nlb-configuration[Configuring {aws-short} Elastic IP (EIP) addresses for a Network Load Balancer (NLB)].
+
+[id="ocp-release-notes-networking-openstack-floatingip-support-ingress_{context}"]
+==== Support for pre-created {rh-openstack} floating IP addresses in the Ingress Controller
+
+With this release, you can now specify pre-created floating IP addresses in the Ingress Controller for your clusters running on {rh-openstack}.
+
+For more information, see xref:../networking/load-balancing-openstack.adoc#nw-osp-specify-floating-ip[Specifying a floating IP address in the Ingress Controller].
+
 [id="ocp-release-notes-nodes_{context}"]
 === Nodes
 
