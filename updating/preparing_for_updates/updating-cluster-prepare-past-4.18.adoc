@@ -1,0 +1,126 @@
+:_mod-docs-content-type: ASSEMBLY
+[id="updating-cluster-prepare-past-4.18"]
+= Preparing to update from {product-title} 4.18 to a newer version
+include::_attributes/common-attributes.adoc[]
+:context: updating-cluster-prepare-past-4.18
+
+toc::[]
+
+Learn about some of the specific concerns around {op-system-base} compute machines before attempting to update from {product-title} 4.18 to a newer version.
+
+[id="provision-new-rhcos-nodes-before-update_{context}"]
+== Provisioning new {op-system} worker nodes before updating the cluster
+
+With the introduction of {product-title} 4.19, package-based {op-system-base} worker nodes are no longer supported. Attempting to update your cluster while having these nodes up and running will prevent you from successfully completing the update.
+
+Prior to deleting any {op-system-base} worker nodes and attempting to update your cluster, provision new {op-system} compute nodes so you can move any {op-system-base} workloads onto these new nodes. For installer-provisioned infrastructure installations, automatic scaling adds {op-system} nodes by default. For user-provisioned infrastructure installations on bare metal, you can manually xref:../../postinstallation_configuration/node-tasks.adoc#post-install-config-adding-fcos-compute[add {op-system} compute nodes to your cluster].
+
+Once you have provisioned new worker nodes, you can reschedule pods running on {op-system-base} compute nodes onto these new {op-system} nodes using node selectors. 
+
+For example, the following `Node` object has a label for its operating system information, in this case {op-system}:
+
+.Sample `Node` object with {op-system} label
++
+[source,yaml]
+----
+kind: Node
+apiVersion: v1
+metadata:
+  name: ip-10-0-131-14.ec2.internal
+  selfLink: /api/v1/nodes/ip-10-0-131-14.ec2.internal
+  uid: 7bc2580a-8b8e-11e9-8e01-021ab4174c74
+  resourceVersion: '478704'
+  creationTimestamp: '2019-06-10T14:46:08Z'
+  labels:
+    kubernetes.io/os: linux
+    failure-domain.beta.kubernetes.io/zone: us-east-1a
+    node.openshift.io/os_version: '{product-version}'
+    node-role.kubernetes.io/worker: ''
+    failure-domain.beta.kubernetes.io/region: us-east-1
+    node.openshift.io/os_id: rhcos <1>
+    beta.kubernetes.io/instance-type: m4.large
+    kubernetes.io/hostname: ip-10-0-131-14
+    beta.kubernetes.io/arch: amd64
+#...
+----
+<1> The label identifying the OS running on the node, to match pode node selector.
+
+Any pods that you want to schedule to new {op-system} nodes must contain a matching label in its `nodeSelector` field. The following procedure describes how to add it.
+
+.Procedure
+
+. Deschedule the {op-system-base} node currently running your existing pods:
++
+[source,terminal]
+----
+$ oc adm cordon <rhel-node>
+----
+
+. Add an `rhcos`  node selector to a pod:
+
+** To add the node selector to existing and future pods, add the node selextor to the controller object for hte pods:
++
+.Example `DeploymentConfig` object with `rhcos` label
+[source,terminal]
+----
+$ oc patch dc <my-app> -p '{"spec":{"template":{"spec":{"nodeSelector":{"node.openshift.io/os_id":"rhcos"}}}}}'
+----
++
+Any existing pods under your `DeploymentConfig` controlling object will be recreated on your {op-system} nodes.
+
+** To add the node selector to a specific, new pod, add the selector to the `Pod` object directly:
++
+.Example `Pod` object with `rhcos` label
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: <my-app>
+#...
+spec:
+  nodeSelector:
+    node.openshift.io/os_id: rhcos
+#...
+----
++
+The new pod will be created on {op-system} nodes, assuming the pod also has a controlling object.
+
+[id="identifying-and-removing-rhel-worker-nodes_{context}"]
+== Identifying and removing {op-system-base} worker nodes
+
+With the introduction of {product-title} 4.19, package-based {op-system-base} worker nodes are no longer supported. The following procedure describes how to identify {op-system-base} nodes for cluster removal on bare metal installations. You must perform the steps described in this procedure in order to ensure a successful cluster update.
+
+.Procedure
+
+. Create a script that identifies nodes running {op-system-base} and removes them from the cluster that is similar to the following:
++
+.`remove_nodes.sh`
+[source,bash]
+----
+#!/bin/bash
+
+RHEL_NODES=$(oc get nodes -o=json | jq -r '.items[] | select(.status.nodeInfo.osImage | startswith("Red Hat Enterprise Linux CoreOS") | not)) | .metadata.name') <1>
+
+for node in $RHEL_NODES; do
+  oc adm cordon $node <2>
+  oc adm drain $node --force --delete-emptydir-data --ignore-daemonsets <3>
+  oc delete node $node <4>
+done
+----
+<1> Identifies all nodes running {op-system-base}.
+<2> Marks the nodes as unschedulable.
+<3> Drains all the pods on each node. This might fail if the node is already offline or otherwise unresponsive. Even if the node does not respond, it might still be running a workload that writes to shared storage. To avoid data corruption, power down the physical hardware beforehand.
+<4> Deletes the nodes from the cluster.
+
+. Removing {product-title} from a machine in the cluster requires destroying the operating system, and you must decommision and wipe data from the hardware you have dedicated for any {op-system-base} machines in your cluster. To do this, run the following command:
++
+[source,terminal]
+----
+# nohup shred -n 25 -f -z /dev/<HDD>
+----
++
+Consider performing this step from RescueCD.
+
+For more information on this process, see the following link:https://access.redhat.com/solutions/4976801[Red{nbsp}Hat Knowledgebase solution].
+
